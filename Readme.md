@@ -1,0 +1,3 @@
+# 2dmap data plot
+
+This utility uses WMO, MIDAS and MONARCH data to visualize Dust Optical Depths at 550nm over a specific geographic area...
