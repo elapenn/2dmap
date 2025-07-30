@@ -403,7 +403,15 @@ def main(obs_date, map_region):
 
 	#plt.show()
 
-	plt.savefig(map_region+'_'+tardate+'.png')
+	# Set plot filename
+	image_file = map_region+'_'+tardate+'.png'
+
+	plt.savefig(image_file)
+
+	if os.path.isfile(image_file):
+		print('SUCCESS: File created!')
+	else:
+		print('ERROR: Something goes wrong')
 
 
 #
