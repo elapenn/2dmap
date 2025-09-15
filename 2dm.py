@@ -8,7 +8,8 @@ import os
 import sys
 import numpy as np
 import argparse
-from datetime import datetime
+import requests
+from datetime import datetime, timedelta
 import netCDF4 as nc
 import cartopy.crs as ccrs
 import matplotlib as mpl
@@ -23,18 +24,89 @@ from matplotlib.colors import LinearSegmentedColormap
 date_min = '2011-12-31'
 date_max = '2017-01-01'
 
-#data_path = '/mnt/data_vre/'
 data_path = './data/'
+
+#
+def wmo_file_download(obs_date):
+
+	global data_path
+
+	#
+	date_object = datetime.strptime(obs_date, '%Y-%m-%d')
+
+	next_day = date_object + timedelta(days=1)
+
+	yyyy = date_object.year
+	mm = f'{date_object.month:02}'
+	dd = f'{date_object.day:02}'
+	dt = f'{next_day.day:02}'
+
+	url = 'https://dust.aemet.es/thredds/ncss/dataRoot/MULTI-MODEL/'+str(yyyy)+'/'+str(mm)+'/'+str(yyyy)+str(mm)+str(dd)+'_3H_MEDIAN.nc?var=OD550_DUST&time_start='+str(yyyy)+'-'+str(mm)+'-'+str(dd)+'T12%3A00%3A00Z&time_end='+str(yyyy)+'-'+str(mm)+'-'+str(dt)+'T09%3A00%3A00Z&accept=netcdf4'  # Replace with your API endpoint
+	username = 'mmytilinaios'  # Replace with your username
+	password = 'Pkc2nlj1UW9npFfK'  # Replace with your password
+	#print(url)
+
+	# Make the GET request with basic authentication
+	response = requests.get(url, auth=(username, password))
+
+	# Check if the request was successful
+	if response.status_code == 200:
+		# Specify the filename to save the downloaded file
+		filename = data_path + str( date_object.strftime('%Y%m%d') )+'_3H_MEDIAN.nc'  # Change the extension as needed
+
+		# Write the content to a file
+		with open(filename, 'wb') as file:
+			file.write(response.content)
+		print(f'File downloaded successfully: {filename}')
+
+	else:
+		print(f'Failed to download file. Status code: {response.status_code}, Message: {response.text}')
+
+	return(data_path + str( date_object.strftime('%Y%m%d') )+'_3H_MEDIAN.nc')
+
+#
+def monarch_file_download(obs_date):
+
+	global data_path
+
+	#
+	date_object = datetime.strptime(obs_date, '%Y-%m-%d')
+
+	stripped = date_object.strftime('%Y%m%d')
+
+	url = 'https://earth.bsc.es/thredds_dustclim/fileServer/monarch-dustclim/3hourly/od550du-av_an/od550du_'+str(stripped)+'03_av_an.nc'
+	username = 'dustclim'  # Replace with your username
+	password = '*DustClim*'  # Replace with your password
+	#print(url)
+
+	# Make the GET request with basic authentication
+	response = requests.get(url, auth=(username, password))
+
+	# Check if the request was successful
+	if response.status_code == 200:
+		# Specify the filename to save the downloaded file
+		filename = data_path + 'MO_od550du_'+str(stripped)+'03_av_an.nc'  # Change the extension as needed
+
+		# Write the content to a file
+		with open(filename, 'wb') as file:
+			file.write(response.content)
+		print(f'File downloaded successfully: {filename}')
+
+	else:
+		print(f'Failed to download file. Status code: {response.status_code}, Message: {response.text}')
+
+	return(data_path + 'MO_od550du_'+str(stripped)+'03_av_an.nc')
+
 
 
 def aemet_mm_scale_filter(x):
 	#print(x)
 	if x is None:
-			x = -1
+		x = -1
 	elif x <= 0:
-			x = -1
+		x = -1
 	elif 0.0 < x <= 0.1:
-			x = 0 # np.where(B == N[i])
+		x = 0 # np.where(B == N[i])
 	elif 0.1 < x <= 0.2:
 		x = 1
 	elif 0.2 < x <= 0.4:
@@ -78,6 +150,7 @@ def normalize_colorbar(B, N):
 	return normN
 """
 
+#
 def NormalizeData(data):
 	return (data - np.min(data)) / (np.max(data) - np.min(data))
 
@@ -116,15 +189,21 @@ def main(obs_date, map_region):
 	tmp = datetime.strptime(obs_date, '%Y-%m-%d')
 	tardate = str( tmp.strftime('%Y%m%d') )
 
-
 	# Set data file (path, name)
-	wmo_file = data_path + tardate+'_3H_MEDIAN.nc'
-	midas_file = data_path + 'MODIS-AQUA-C061_AOD-and-DOD-V1-GRID_RESOLUTION_0.1-'+tardate+'.nc'
-	monarch_file = data_path + 'MO_od550du_'+tardate+'03_av_an.nc'
-	#print(wmo_file)
-	#print(midas_file)
-	#print(monarch_file)
+	wmo_file = wmo_file_download(obs_date)
+	#wmo_file = data_path + tardate+'_3H_MEDIAN_OLD.nc'
+	#
+	#midas_file = data_path + 'MODIS-AQUA-C061_AOD-and-DOD-V1-GRID_RESOLUTION_0.1-'+tardate+'.nc'
+	#
+	monarch_file = monarch_file_download(obs_date)
+	#monarch_file = data_path + 'MO_od550du_'+tardate+'03_av_an_OLD.nc'
 
+	"""
+	print(wmo_file)
+	print(midas_file)
+	print(monarch_file)
+	sys.exit()
+	"""
 
 	# WMO file check
 	if not os.path.exists(wmo_file):
@@ -132,9 +211,9 @@ def main(obs_date, map_region):
 		sys.exit()
 
 	# MIDAS file check
-	if not os.path.exists(midas_file):
-		print('MIDAS file does not exist!')
-		sys.exit()
+	#if not os.path.exists(midas_file):
+	#	print('MIDAS file does not exist!')
+	#	sys.exit()
 
 	# MONARCH file check
 	if not os.path.exists(monarch_file):
@@ -161,29 +240,34 @@ def main(obs_date, map_region):
 
 	### MIDAS
 	# longitude [degrees east]
-	dataset = nc.Dataset(str(midas_file))
-	LON_M2 = dataset.variables['Longitude'][:]
-	LON_M1 = np.unique(np.round(LON_M2, 1))
+	#dataset = nc.Dataset(str(midas_file))
+	#LON_M2 = dataset.variables['Longitude'][:]
+	#LON_M1 = np.unique(np.round(LON_M2, 1))
 	# latitude [degrees north]
-	LAT_M2 = dataset.variables['Latitude'][:]
-	LAT_M1 = np.unique(np.round(LAT_M2, 1))
+	#LAT_M2 = dataset.variables['Latitude'][:]
+	#LAT_M1 = np.unique(np.round(LAT_M2, 1))
 	# aerosol optical depth
-	DODmidas = dataset.variables['Modis-total-dust-optical-depth-at-550nm'][:]
+	#DODmidas = dataset.variables['Modis-total-dust-optical-depth-at-550nm'][:]
 
 	#print(DODmidas)
 
 	### MONARCH Reanalysis
 	# longitude [degrees east]
 	dataset = nc.Dataset(monarch_file)
-	LONrea = dataset.variables['lon'][:]
+	LONrea = dataset.variables['lon'][1,:] # ['lon'][:]
 	# latitude [degrees north]
-	LATrea = dataset.variables['lat'][:]
+	LATrea = dataset.variables['lat'][:,1] # ['lat'][:]
 	# aerosol optical depth
 	f_od550du = dataset.variables['od550du'][:]
 	f_od550du[f_od550du < 0] = np.nan
 	DODrea = f_od550du[4,:,:]
 
-	#print(DODrea)
+	"""
+	print(LONrea.shape)
+	print(LATrea.shape)
+	print(DODrea.shape)
+	sys.exit()
+	"""
 
 	# ************************************ #
 
@@ -234,7 +318,7 @@ def main(obs_date, map_region):
 		blonmax =  10 #
 
 	# Set plot
-	fig, axs = plt.subplots(1, 3, figsize=(15, 5), subplot_kw={'projection': ccrs.PlateCarree()}) # 1, 3
+	fig, axs = plt.subplots(1, 2, figsize=(10, 5), subplot_kw={'projection': ccrs.PlateCarree()}) # 1, 3, figsize(15,5)
 
 	"""
 	nrows = 0
@@ -311,7 +395,7 @@ def main(obs_date, map_region):
 
 
 	# ******* MIDAS ******* #
-
+	"""
 	#print('LAT_M1: ',len(LAT_M1))
 	#print('LON_M1: ',len(LON_M1))
 
@@ -352,7 +436,7 @@ def main(obs_date, map_region):
 		extend = 'max',
 		label = ''
 	) # spacing = 'uniform'
-
+	"""
 
 
 	# ******* MONARCH Reanalysis ******* #
@@ -365,32 +449,32 @@ def main(obs_date, map_region):
 	NZ_norm = normalize_colorbar(NZ)
 	#print('MONARCH data shape: ', NZ_norm.shape)
 
-	c = axs[2].pcolormesh(LONrea, LATrea, NZ_norm[:-1, :-1], cmap=cmap, vmin=0, vmax=9) # plt.get_cmap('Reds', 10)
-	axs[2].coastlines()
+	c = axs[1].pcolormesh(LONrea, LATrea, NZ_norm[:-1, :-1], cmap=cmap, vmin=0, vmax=9) # plt.get_cmap('Reds', 10)
+	axs[1].coastlines()
 
 	# Major ticks every 20, minor ticks every 10
-	axs[2].set_xticks(np.arange(blatmin, blatmax, 20))
-	axs[2].set_yticks(np.arange(blonmin, blonmax, 10))
+	axs[1].set_xticks(np.arange(blatmin, blatmax, 20))
+	axs[1].set_yticks(np.arange(blonmin, blonmax, 10))
 
 	# Set tile and limits
-	axs[2].set_title('MONARCH Reanalysis\n'+str(tmp)+' 12:00 UTC')
-	axs[2].set_xlim([blatmin,blatmax])
-	axs[2].set_ylim([blonmin,blonmax])
+	axs[1].set_title('MONARCH Reanalysis\n'+str(tmp)+' 12:00 UTC')
+	axs[1].set_xlim([blatmin,blatmax])
+	axs[1].set_ylim([blonmin,blonmax])
 	# Add units to xytics
-	axs[2].xaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0f}°"))
-	axs[2].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0f}°"))
+	axs[1].xaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0f}°"))
+	axs[1].yaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.0f}°"))
 
 	# And a corresponding grid
-	axs[2].grid(which='both')
+	axs[1].grid(which='both')
 	# Or if you want different settings
-	axs[2].grid(which='major', alpha=0.5)
+	axs[1].grid(which='major', alpha=0.5)
 
 	bounds = [1, 2, 3, 4, 5, 6, 7, 8, 9]
 	norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
 
 	fig.colorbar(
 		c,
-		ax = axs[2],
+		ax = axs[1],
 		norm = norm,
 		ticks = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
 		format = ticker.FixedFormatter(['0.0', '0.1', '0.2', '0.4', '0.8', '1.2', '1.6', '3.2', '6.4']),
