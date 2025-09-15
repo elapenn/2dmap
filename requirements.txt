@@ -1,5 +1,6 @@
 numpy
 argparse
+requests
 datetime
 netCDF4
 cartopy
